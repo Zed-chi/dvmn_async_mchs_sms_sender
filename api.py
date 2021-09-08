@@ -24,6 +24,8 @@ async def request_smsc(method, login, password, payload):
         >>> request_smsc("status", "my_login", "my_password", {"phone": "+79123456789", "id": "24"})
         {'status': 1, 'last_date': '28.12.2019 19:20:22', 'last_timestamp': 1577550022}
     """    
+    payload["login"] = login
+    payload["psw"] = password
 
     if method not in ["send", "status"]:
         raise SmscApiError("Wrong Method")
@@ -43,6 +45,6 @@ async def request_smsc(method, login, password, payload):
         response_dict = response.json()
         
         if "error" in response_dict:
-            raise SmscApiError(f"Error is {response_dict['error']}")
+            raise SmscApiError(f"Error: {response_dict['error']}")
     
         return response_dict
