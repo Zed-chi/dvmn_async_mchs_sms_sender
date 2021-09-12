@@ -1,5 +1,7 @@
-trio
-httpx
-environs
-quart
-quart-trio
+trio==0.19
+httpx==0.19
+environs==9.3.3
+quart==0.15.1
+quart-trio==0.8.1
+aioredis==1.2
+trio-asyncio==0.12
