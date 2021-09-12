@@ -30,7 +30,7 @@ class Database:
         phones_for_sms_mailing_{sms_id} —> hset {phone}:{status} (статус доставки)
     """
 
-    def __init__(self, redis):        
+    def __init__(self, redis):
         self.redis = redis
 
     async def add_sms_mailing(
@@ -133,6 +133,6 @@ class Database:
         return mailings
 
     async def list_sms_mailings(self):
-        """Return list of sms_id for all registered SMS mailings."""        
+        """Return list of sms_id for all registered SMS mailings."""
         keys = await self.redis.keys(f"sms_mailing_*")
         return [key.split("_")[-1] for key in keys]
