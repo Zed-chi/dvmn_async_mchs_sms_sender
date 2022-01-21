@@ -9,6 +9,8 @@
 * python 3.7 и выше
 * установка зависимосте командой :
     `pip install -r requirements.txt`
+* запущенный Redis клмандой:
+    `redis-server`
 * запуск командой:
     `python trio_server.py`
 
