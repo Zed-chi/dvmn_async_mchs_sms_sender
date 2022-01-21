@@ -1,108 +1,100 @@
 import asyncio
-import json
-from time import time_ns
 
 import aioredis
 import trio
-import trio_asyncio
+from environs import Env
 from hypercorn.config import Config as HyperConfig
 from hypercorn.trio import serve
-from quart import Response, render_template, request, websocket
+from pydantic.error_wrappers import ValidationError
+from quart import jsonify, render_template, request, websocket
 from quart_trio import QuartTrio
+from trio_asyncio import aio_as_trio, open_loop
 
 from db import Database
-from utils import State, create_argparser, mail_conversion
+from smsc_api import API_methods, Smsc_manager
+from utils import Mailing, State, create_argparser, transform_mailing
+
+env = Env()
+env.read_env()
+
 
 parser = create_argparser()
 args = parser.parse_args()
-app = QuartTrio(__name__)
 state = State
-phones = ["123", "234", "345"]
+phones = [
+    "+7 999 519 05 57",
+    "911",
+    "112",
+]
+app = QuartTrio(__name__)
 
 
 @app.before_serving
 async def init():
-    state.redis = await trio_asyncio.run_aio_coroutine(
-        aioredis.create_redis_pool(
-            address=args.redis_uri,
-            password=args.redis_password,
-            encoding="utf-8",
-        )
+    state.redis = await aio_as_trio(aioredis.from_url)(
+        args.redis_uri, decode_responses=True
     )
     state.db = Database(state.redis)
+    state.smsc = Smsc_manager(env.str("login"), env.str("password"))
 
 
 @app.after_serving
 async def close():
-    if state.redis is not None:
-        state.redis.close()
-        await trio_asyncio.run_aio_coroutine(state.redis.wait_closed())
+    await aio_as_trio(state.redis.close)()
 
 
 @app.route("/")
 async def index():
-    return await render_template("index.html")
-
-
-@app.route(
-    "/send/",
-    methods=[
-        "POST",
-    ],
-)
-async def create_sms_mailing():
-    try:
-        form = await request.form
-        text = form.get("text", None)
-        if text is None:
-            raise ValueError("Empty sms text")
-
-        await trio_asyncio.run_aio_coroutine(
-            state.db.add_sms_mailing(time_ns(), phones, text)
-        )
-        return Response(json.dumps({"status": "ok"}), status=201)
-    except Exception as e:
-        print(e)
-        return Response(json.dumps({"errorMessage": e}), status=500)
+    return await render_template("./index.html")
 
 
 @app.websocket("/ws")
 async def ws():
     while True:
-        try:
-            ids = await trio_asyncio.aio_as_trio(state.db.list_sms_mailings)()
+        sms_ids = await aio_as_trio(state.db.list_sms_mailings)()
+        sms_mailings = await aio_as_trio(state.db.get_sms_mailings)(*sms_ids)
+        transformed_mailings = [transform_mailing(x) for x in sms_mailings]
 
-            mailings = [
-                await trio_asyncio.run_aio_coroutine(
-                    state.db.get_sms_mailings(x)
-                )
-                for x in ids
-            ]
-            transformed_mailings = [mail_conversion(x[0]) for x in mailings]
-
-            await websocket.send(
-                json.dumps(
-                    {
-                        "msgType": "SMSMailingStatus",
-                        "SMSMailings": transformed_mailings,
-                    }
-                )
-            )
-            await trio.sleep(2)
-        except Exception as e:
-            print(e)
+        message = {
+            "msgType": "SMSMailingStatus",
+            "SMSMailings": transformed_mailings,
+        }
+        await websocket.send_json(message)
+        await trio.sleep(1)
 
 
-async def run_server():
+@app.route("/send/", methods=["POST"])
+async def create():
+    try:
+        form = await request.form
+        mailing = Mailing(message=form["text"])
+        smsc_response = await state.smsc.request_smsc(
+            API_methods.send_message,
+            {"mes": mailing.message, "phones": phones},
+            mock=True,
+        )
+        await aio_as_trio(state.db.add_sms_mailing)(
+            smsc_response["id"], phones, form["text"]
+        )
 
-    async with trio_asyncio.open_loop():
+        if "errorMessage" in smsc_response:
+            return jsonify({"errorMessage": smsc_response["errorMessage"]})
+        return jsonify(smsc_response)
+    except ValidationError:
+        return jsonify({"errorMessage": "Empty text"})
+
+
+async def async_main():
+    async with open_loop():
         asyncio._set_running_loop(asyncio.get_event_loop())
         config = HyperConfig()
-        config.bind = [f"127.0.0.1:5000"]
+        config.bind = ["127.0.0.1:5000"]
         config.use_reloader = True
-
         await serve(app, config)
 
 
 if __name__ == "__main__":
-    trio.run(run_server)
+    try:
+        trio.run(async_main)
+    except KeyboardInterrupt:
+        print("Aborted, bye!")
