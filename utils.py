@@ -1,26 +1,28 @@
 import argparse
 from dataclasses import dataclass
-from typing import Any
 
-from aioredis.pool import ConnectionsPool
+import aioredis.connection as con
+from pydantic import BaseModel, BaseSettings, ConstrainedStr
 
 from db import Database
 
 
 @dataclass
 class State:
-    redis: ConnectionsPool = None
+    redis: con.ConnectionPool = None
     db: Database = None
 
 
-def mail_conversion(mail_dict):
-    failed = [v for k, v in mail_dict["phones"].items() if v == "failed"]
-    delivered = [v for k, v in mail_dict["phones"].items() if v == "delivered"]
+def transform_mailing(status_dict):
+    failed = [v for k, v in status_dict["phones"].items() if v == "failed"]
+    delivered = [
+        v for k, v in status_dict["phones"].items() if v == "delivered"
+    ]
     return {
-        "timestamp": mail_dict["created_at"],
-        "SMSText": mail_dict["text"],
-        "mailingId": str(mail_dict["sms_id"]),
-        "totalSMSAmount": mail_dict["phones_count"],
+        "timestamp": status_dict["created_at"],
+        "SMSText": status_dict["text"],
+        "mailingId": str(status_dict["sms_id"]),
+        "totalSMSAmount": status_dict["phones_count"],
         "deliveredSMSAmount": len(delivered),
         "failedSMSAmount": len(failed),
     }
@@ -44,3 +46,16 @@ def create_argparser():
         help="Redis db password",
     )
     return parser
+
+
+class Message(ConstrainedStr):
+    min_length = 1
+
+
+class Mailing(BaseModel):
+    message: Message
+
+
+class Settings(BaseSettings):
+    login: str
+    password: str
