@@ -1,8 +1,8 @@
 import argparse
 from dataclasses import dataclass
 
-import aioredis.connection as con
 from pydantic import BaseModel, BaseSettings, ConstrainedStr
+from redis.asyncio import connection as con
 
 from db import Database
 

@@ -1,6 +1,5 @@
 import asyncio
 
-import aioredis
 import trio
 from environs import Env
 from hypercorn.config import Config as HyperConfig
@@ -8,11 +7,13 @@ from hypercorn.trio import serve
 from pydantic.error_wrappers import ValidationError
 from quart import jsonify, render_template, request, websocket
 from quart_trio import QuartTrio
+from redis import asyncio as aioredis
 from trio_asyncio import aio_as_trio, open_loop
 
 from db import Database
 from smsc_api import API_methods, Smsc_manager
 from utils import Mailing, State, create_argparser, transform_mailing
+
 
 env = Env()
 env.read_env()
