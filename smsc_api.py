@@ -39,7 +39,9 @@ class Smsc_manager:
             if i not in params_to_check or not params_to_check[i]:
                 raise SmscApiError("Params Error")
 
-    async def request_smsc(self, method:API_methods, request_params:Dict, mock:Boolean=False)->Dict:
+    async def request_smsc(
+        self, method: API_methods, request_params: Dict, mock: Boolean = False
+    ) -> Dict:
         """Шлет запросы на SMSC.ru сервис.
 
         Аргументы:
