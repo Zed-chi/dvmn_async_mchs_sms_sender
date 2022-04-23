@@ -15,7 +15,9 @@
     `python trio_server.py`
 
 При запуске можно изменить аргументы:
+
 `--address` - адрес Redis сервера (по-умолчанию "redis://localhost:6379")
+
 `--password` - пароль от Redis сервера (по-умолчанию "")
 
 

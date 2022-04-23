@@ -3,6 +3,6 @@ httpx==0.21.3
 environs==9.4
 quart==0.16.2
 quart-trio==0.9.1
-aioredis==2.0.*
 hiredis==2.0.0
 trio-asyncio==0.12.*
+redis==4.2.2
